@@ -81,8 +81,42 @@
   </button>
   <div class="section-head">
     <h2>加油记录</h2>
-    <span id="latestText"></span>
+    <div class="view-switch" id="viewSwitch" role="group" aria-label="显示方式">
+      <button type="button" data-view="table" class="is-on">表格</button>
+      <button type="button" data-view="cards">大卡片</button>
+    </div>
   </div>
+  <p class="list-meta" id="latestText"></p>
+
+  <section class="ledger-card" id="ledgerCard">
+    <table class="ledger">
+      <colgroup>
+        <col class="col-date"><col class="col-km"><col class="col-liters"><col class="col-cons"><col class="col-cost">
+      </colgroup>
+      <thead>
+        <tr>
+          <th>日期</th>
+          <th>里程<small>公里</small></th>
+          <th>油量<small>升</small></th>
+          <th>油耗<small>升/百公里</small></th>
+          <th>费用<small>元</small></th>
+        </tr>
+      </thead>
+      <tbody id="ledgerBody"></tbody>
+      <tfoot>
+        <tr>
+          <th>合计</th>
+          <td id="tKm"></td>
+          <td id="tLiters"></td>
+          <td id="tCons"></td>
+          <td id="tCost"></td>
+        </tr>
+      </tfoot>
+    </table>
+  </section>
+
+  <ul class="records" id="recordList" hidden></ul>
+  <p class="empty" id="emptyState" hidden>还没有记录，点上面的按钮记第一笔。</p>
 
   <section class="chart-card" id="chartCard" hidden>
     <div class="chart-head">
@@ -91,9 +125,6 @@
     </div>
     <div class="chart" id="chart"></div>
   </section>
-
-  <ul class="records" id="recordList"></ul>
-  <p class="empty" id="emptyState" hidden>还没有记录，点上面的按钮记第一笔。</p>
 
   <div class="backup-hint" id="backupHint" hidden>
     <p>小提醒：数据只存在这台手机里。建议每月点一次「说明 · 备份」导出备份。</p>
