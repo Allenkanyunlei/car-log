@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="format-detection" content="telephone=no">
+<title>车辆加油账本</title>
+<meta name="description" content="记录每次加油，自动计算油耗、油价与总花费。">
+<meta name="theme-color" content="#0d1117">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png" type="image/png">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="加油账本">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<header class="hero">
+  <div class="hero-inner">
+    <div class="hero-top">
+      <span class="kicker">
+        <svg class="gauge" viewBox="0 0 48 48" aria-hidden="true">
+          <path d="M7 33a17 17 0 1 1 34 0" fill="none" stroke="currentColor" stroke-width="4.5" stroke-linecap="round"/>
+          <path d="M24 33 33 22" fill="none" stroke="currentColor" stroke-width="4.5" stroke-linecap="round"/>
+          <circle cx="24" cy="33" r="3.2" fill="currentColor"/>
+        </svg>
+        车辆加油账本
+      </span>
+      <button class="hero-link" id="helpBtn" type="button">说明 · 备份</button>
+    </div>
+
+    <h1>每次加油<br><span class="hero-em">自动算油耗</span></h1>
+
+    <div class="hero-stats">
+      <div class="hero-stat hero-stat--wide">
+        <span class="hs-label">平均油耗</span>
+        <span class="hs-value"><b id="heroAvg">—</b><i>升/百公里</i></span>
+      </div>
+      <div class="hero-stat">
+        <span class="hs-label">总里程</span>
+        <span class="hs-value"><b id="heroKm">0</b><i>公里</i></span>
+      </div>
+      <div class="hero-stat">
+        <span class="hs-label">加油次数</span>
+        <span class="hs-value"><b id="heroCount">0</b><i>次</i></span>
+      </div>
+    </div>
+
+    <p class="hero-note" id="carNote"></p>
+  </div>
+  <div class="road" aria-hidden="true"></div>
+</header>
+
+<main class="wrap">
+
+  <section class="summary" aria-label="总览数据">
+    <div class="sum-card">
+      <span class="sum-label">总花费</span>
+      <span class="sum-value" id="sumCost">¥0</span>
+    </div>
+    <div class="sum-card">
+      <span class="sum-label">总油量</span>
+      <span class="sum-value" id="sumLiters">0<span class="sum-unit">升</span></span>
+    </div>
+    <div class="sum-card">
+      <span class="sum-label">平均油价</span>
+      <span class="sum-value" id="sumPrice">—<span class="sum-unit">元/升</span></span>
+    </div>
+    <div class="sum-card">
+      <span class="sum-label">每公里油费</span>
+      <span class="sum-value" id="sumPerKm">—<span class="sum-unit">元</span></span>
+    </div>
+  </section>
+
+  <button class="big-add" id="addBtn" type="button">
+    <span class="big-add-icon">＋</span>
+    记一笔加油
+  </button>
+  <div class="section-head">
+    <h2>加油记录</h2>
+    <span id="latestText"></span>
+  </div>
+
+  <section class="chart-card" id="chartCard" hidden>
+    <div class="chart-head">
+      <h3>最近油耗走势</h3>
+      <span>升/百公里 · 越矮越省油</span>
+    </div>
+    <div class="chart" id="chart"></div>
+  </section>
+
+  <ul class="records" id="recordList"></ul>
+  <p class="empty" id="emptyState" hidden>还没有记录，点上面的按钮记第一笔。</p>
+
+  <div class="backup-hint" id="backupHint" hidden>
+    <p>小提醒：数据只存在这台手机里。建议每月点一次「说明 · 备份」导出备份。</p>
+  </div>
+</main>
+
+<!-- 录入 / 修改 -->
+<div class="sheet" id="sheet" hidden>
+  <div class="sheet-backdrop" data-close></div>
+  <form class="sheet-panel" id="form" novalidate>
+    <div class="sheet-grip" aria-hidden="true"></div>
+    <div class="sheet-head">
+      <h2 id="sheetTitle">记一笔加油</h2>
+      <button type="button" class="sheet-close" data-close aria-label="关闭">✕</button>
+    </div>
+
+    <div class="sheet-body">
+      <label class="field">
+        <span class="field-label">加油日期</span>
+        <input type="date" id="fDate" class="field-input" required>
+      </label>
+
+      <label class="field">
+        <span class="field-label">本次行驶里程（公里）</span>
+        <input type="number" id="fKm" class="field-input" inputmode="decimal" step="1" min="0" placeholder="例如 571" required>
+        <span class="field-hint">上次加满油到这次加满，一共跑了多少公里</span>
+      </label>
+
+      <label class="field">
+        <span class="field-label">加油量（升）</span>
+        <input type="number" id="fLiters" class="field-input" inputmode="decimal" step="0.01" min="0" placeholder="例如 44.62" required>
+      </label>
+
+      <div class="preview" id="preview">
+        <div class="preview-row">
+          <span class="preview-label">本次油耗</span>
+          <span class="preview-value" id="previewValue">—</span>
+          <span class="preview-unit">升/百公里</span>
+        </div>
+        <div class="preview-sub" id="previewSub">填好里程和油量，这里自动出现油耗</div>
+      </div>
+
+      <label class="field">
+        <span class="field-label">加油费用（元）</span>
+        <input type="number" id="fCost" class="field-input" inputmode="decimal" step="0.01" min="0" placeholder="例如 327">
+        <span class="field-hint">费用和油价，填一个就能算出另一个</span>
+      </label>
+
+      <label class="field">
+        <span class="field-label">每升油价（元）<span class="field-tag">选填</span></span>
+        <input type="number" id="fPrice" class="field-input" inputmode="decimal" step="0.01" min="0" placeholder="不填也行">
+      </label>
+
+      <p class="form-error" id="formError" role="alert" hidden></p>
+    </div>
+
+    <div class="sheet-foot">
+      <button type="submit" class="btn btn-primary" id="saveBtn">保存</button>
+      <button type="button" class="btn btn-danger" id="deleteBtn" hidden>删除这条</button>
+    </div>
+  </form>
+</div>
+
+<!-- 说明 / 备份 -->
+<div class="sheet" id="helpSheet" hidden>
+  <div class="sheet-backdrop" data-close></div>
+  <div class="sheet-panel sheet-panel--tall" role="dialog" aria-modal="true" aria-labelledby="helpTitle">
+    <div class="sheet-grip" aria-hidden="true"></div>
+    <div class="sheet-head">
+      <h2 id="helpTitle">说明与备份</h2>
+      <button type="button" class="sheet-close" data-close aria-label="关闭">✕</button>
+    </div>
+
+    <div class="sheet-body help-body">
+      <h3>数据存在哪里</h3>
+      <p>记录只保存在这台手机的这个网页里，不会上传到网上。换手机、清理浏览器数据都会丢失，所以请每月导出一次备份。</p>
+
+      <div class="backup-actions">
+        <button type="button" class="btn btn-primary" id="exportBtn">导出备份（.json）</button>
+        <button type="button" class="btn btn-ghost" id="exportCsvBtn">导出表格（.csv，电脑可看）</button>
+        <button type="button" class="btn btn-ghost" id="importBtn">导入备份，恢复数据</button>
+        <input type="file" id="importFile" accept=".json,application/json" hidden>
+      </div>
+      <p class="backup-time" id="backupTime">还没有导出过备份</p>
+
+      <h3>放到苹果手机桌面上</h3>
+      <ol class="steps">
+        <li>用 Safari 打开这个网页。</li>
+        <li>点屏幕底部中间的「分享」按钮（方框带向上箭头）。</li>
+        <li>往下滑，点「添加到主屏幕」，再点「添加」。</li>
+        <li>以后从桌面图标打开，就像一个小软件，没网也能看。</li>
+      </ol>
+
+      <h3>怎么填</h3>
+      <ol class="steps">
+        <li>加满油后，点「记一笔加油」。</li>
+        <li>填日期、这次跑的公里数、加了多少升、花了多少钱。</li>
+        <li>点保存，油耗和油价会自动算好。</li>
+        <li>填错了，点记录右上角的「修改」。</li>
+      </ol>
+
+      <h3>计算方法</h3>
+      <p>油耗 = 加油量 ÷ 里程 × 100（升/百公里）<br>油价 = 费用 ÷ 加油量（元/升）<br>合计行与 Excel 表格里的公式完全一致。</p>
+
+      <button type="button" class="reset-link" id="resetBtn">还原成 Excel 里的 26 条原始记录</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast" hidden></div>
+
+<script src="records.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
