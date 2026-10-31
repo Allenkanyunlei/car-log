@@ -19,6 +19,12 @@
   var editingId = null;
   var lastDeleted = null;
   var toastTimer = null;
+  var view = 'table';
+
+  try {
+    var savedView = localStorage.getItem('carLog.view');
+    if (savedView === 'cards' || savedView === 'table') view = savedView;
+  } catch (e) { /* 忽略 */ }
 
   var $ = function (id) { return document.getElementById(id); };
 
@@ -165,12 +171,16 @@
     $('sumPrice').innerHTML = (t.avgPrice === null ? '—' : fmt(t.avgPrice, 2)) + '<span class="sum-unit">元/升</span>';
     $('sumPerKm').innerHTML = (t.perKm === null ? '—' : fmt(t.perKm, 2)) + '<span class="sum-unit">元</span>';
 
-    var latest = asc[asc.length - 1];
-    $('latestText').textContent = latest ? '最近一次 ' + fmtDate(latest.date) : '';
-
     renderChart(asc);
     renderList(asc);
+    renderLedger(asc);
+    applyView(asc);
     updateBackupHint();
+  }
+
+  function fmtPlain(v, d) {
+    if (v === null || v === undefined || !isFinite(v)) return '—';
+    return Number(v).toFixed(d);
   }
 
   function renderChart(asc) {
@@ -201,13 +211,10 @@
 
   function renderList(asc) {
     var list = $('recordList');
-    var empty = $('emptyState');
     if (!asc.length) {
       list.innerHTML = '';
-      empty.hidden = false;
       return;
     }
-    empty.hidden = true;
 
     var seqOf = {};
     asc.forEach(function (r, i) { seqOf[r.id] = i + 1; });
@@ -237,6 +244,58 @@
           (r.note ? '<div class="rec-note">' + esc(r.note) + '</div>' : '') +
         '</li>';
     }).join('');
+  }
+
+  function renderLedger(asc) {
+    var body = $('ledgerBody');
+    var latestId = asc.length ? asc[asc.length - 1].id : null;
+    var lastYear = '';
+    var rows = '';
+
+    asc.slice().reverse().forEach(function (r) {
+      var year = String(r.date).slice(0, 4);
+      if (year !== lastYear) {
+        rows += '<tr class="year-row"><th colspan="5">' + esc(year) + ' 年</th></tr>';
+        lastYear = year;
+      }
+      var c = consumption(r);
+      var p = unitPrice(r);
+      rows += '<tr data-edit="' + esc(r.id) + '"' + (r.id === latestId ? ' class="is-latest"' : '') + '>' +
+        '<td class="c-date">' + shortDate(r.date) + '</td>' +
+        '<td>' + fmtPlain(r.km, 0) + '</td>' +
+        '<td>' + fmtPlain(r.liters, 2) + '</td>' +
+        '<td>' + (c === null ? '—' : fmtPlain(c, 2)) + '</td>' +
+        '<td class="c-cost">¥' + fmtPlain(r.cost, 2) +
+          (p === null ? '' : '<small>' + fmtPlain(p, 2) + ' 元/升</small>') + '</td>' +
+      '</tr>';
+    });
+    body.innerHTML = rows;
+
+    var t = totals();
+    $('tKm').textContent = fmtPlain(Math.round(t.km), 0);
+    $('tLiters').textContent = fmtPlain(t.liters, 2);
+    $('tCons').textContent = t.avgCons === null ? '—' : fmtPlain(t.avgCons, 2);
+    $('tCost').textContent = '¥' + fmtPlain(t.cost, 2);
+  }
+
+  function applyView(asc) {
+    var list = asc || records;
+    var latest = list.length ? list[list.length - 1] : null;
+    var isTable = view === 'table';
+    var hasData = list.length > 0;
+
+    $('ledgerCard').hidden = !(isTable && hasData);
+    $('recordList').hidden = !(!isTable && hasData);
+    $('emptyState').hidden = hasData;
+
+    var btns = $('viewSwitch').querySelectorAll('button');
+    for (var i = 0; i < btns.length; i++) {
+      btns[i].classList.toggle('is-on', btns[i].getAttribute('data-view') === view);
+    }
+
+    $('latestText').textContent = latest
+      ? '最近一次 ' + fmtDate(latest.date) + (isTable ? ' · 点一行可以修改' : '')
+      : '';
   }
 
   function updateBackupHint() {
@@ -521,6 +580,19 @@
     $('recordList').addEventListener('click', function (e) {
       var btn = e.target.closest('[data-edit]');
       if (btn) openEdit(btn.getAttribute('data-edit'));
+    });
+
+    $('ledgerBody').addEventListener('click', function (e) {
+      var tr = e.target.closest('tr[data-edit]');
+      if (tr) openEdit(tr.getAttribute('data-edit'));
+    });
+
+    $('viewSwitch').addEventListener('click', function (e) {
+      var btn = e.target.closest('button[data-view]');
+      if (!btn) return;
+      view = btn.getAttribute('data-view');
+      try { localStorage.setItem('carLog.view', view); } catch (err) { /* 忽略 */ }
+      applyView();
     });
 
     $('form').addEventListener('submit', onSubmit);
