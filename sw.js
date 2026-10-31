@@ -1,5 +1,5 @@
-/* 离线缓存：让网页在没信号时也能打开，联网时优先取新版本 */
-const CACHE = 'carlog-v4';
+﻿/* 绂荤嚎缂撳瓨锛氳缃戦〉鍦ㄦ病淇″彿鏃朵篃鑳芥墦寮€锛岃仈缃戞椂浼樺厛鍙栨柊鐗堟湰 */
+const CACHE = 'carlog-v5';
 const ASSETS = [
   './',
   './index.html',
@@ -45,3 +45,4 @@ self.addEventListener('fetch', (event) => {
       )
   );
 });
+
