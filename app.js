@@ -16,14 +16,31 @@
 
   var records = [];
   var meta = { firstUseAt: null, lastExportAt: null };
+  var deleted = {};
   var editingId = null;
   var lastDeleted = null;
   var toastTimer = null;
   var view = 'table';
 
+  var SYNC_KEY = 'carFuelLog.sync';
+  var SYNC_DESC = '车辆加油账本 同步数据';
+  var SYNC_FILE = 'car-fuel-log.json';
+  var sync = { token: '', gistId: '', lastSync: null, status: 'off', busy: false };
+  var syncTimer = null;
+
   try {
     var savedView = localStorage.getItem('carLog.view');
     if (savedView === 'cards' || savedView === 'table') view = savedView;
+  } catch (e) { /* 忽略 */ }
+
+  try {
+    var savedSync = JSON.parse(localStorage.getItem(SYNC_KEY) || 'null');
+    if (savedSync && savedSync.token) {
+      sync.token = savedSync.token;
+      sync.gistId = savedSync.gistId || '';
+      sync.lastSync = savedSync.lastSync || null;
+      sync.status = 'idle';
+    }
   } catch (e) { /* 忽略 */ }
 
   var $ = function (id) { return document.getElementById(id); };
@@ -110,6 +127,7 @@
         var data = JSON.parse(raw);
         if (data && Array.isArray(data.records)) {
           meta = data.meta || meta;
+          deleted = data.deleted && typeof data.deleted === 'object' ? data.deleted : {};
           return data.records.map(function (r) {
             return {
               id: String(r.id || ('r' + Math.random().toString(36).slice(2))),
@@ -117,12 +135,14 @@
               km: Number(r.km) || 0,
               liters: Number(r.liters) || 0,
               cost: Number(r.cost) || 0,
-              note: r.note || ''
+              note: r.note || '',
+              updatedAt: Number(r.updatedAt) || 0
             };
           });
         }
       }
     } catch (e) { /* 存储不可用时退回初始数据 */ }
+    deleted = {};
     return SEED.slice();
   }
 
@@ -130,9 +150,10 @@
     if (!meta.firstUseAt) meta.firstUseAt = new Date().toISOString();
     try {
       localStorage.setItem(STORE_KEY, JSON.stringify({
-        version: 1,
+        version: 2,
         savedAt: new Date().toISOString(),
         meta: meta,
+        deleted: deleted,
         records: records
       }));
       return true;
@@ -304,7 +325,7 @@
     var first = meta.firstUseAt ? new Date(meta.firstUseAt) : null;
     var old = first ? (Date.now() - first.getTime()) > 7 * 864e5 : false;
     var stale = last ? (Date.now() - last.getTime()) > 30 * 864e5 : old;
-    hint.hidden = !(records.length > 0 && stale);
+    hint.hidden = !!sync.token || !(records.length > 0 && stale);
     $('backupTime').textContent = last
       ? '上次导出：' + fmtDate(last.toISOString().slice(0, 10))
       : '还没有导出过备份';
@@ -408,7 +429,8 @@
       km: round(km, 2),
       liters: round(liters, 3),
       cost: cost,
-      note: existing ? existing.note : ''
+      note: existing ? existing.note : '',
+      updatedAt: Date.now()
     };
 
     if (existing) {
@@ -416,9 +438,11 @@
     } else {
       records.push(rec);
     }
+    delete deleted[rec.id];
     save();
     render();
     closeAll();
+    scheduleSync();
     toast(existing ? '已保存修改' : '已记录：' + fmtDate(rec.date) + '，油耗 ' +
       (consumption(rec) === null ? '—' : fmt(consumption(rec), 2) + ' 升/百公里'));
   }
@@ -431,17 +455,22 @@
     if (!editingId) return;
     var idx = records.findIndex(function (x) { return x.id === editingId; });
     if (idx < 0) return;
-    lastDeleted = { rec: records[idx], index: idx };
+    var removed = records[idx];
+    lastDeleted = { rec: removed, index: idx };
     records.splice(idx, 1);
+    deleted[removed.id] = Date.now();
     save();
     render();
     closeAll();
+    scheduleSync();
     toast('已删除这一条', '撤销', function () {
       if (!lastDeleted) return;
       records.splice(Math.min(lastDeleted.index, records.length), 0, lastDeleted.rec);
+      delete deleted[lastDeleted.rec.id];
       lastDeleted = null;
       save();
       render();
+      scheduleSync();
       toast('已恢复');
     });
   }
@@ -449,7 +478,10 @@
   /* ---------------- 备份 ---------------- */
 
   function download(filename, text, type) {
-    var blob = new Blob([text], { type: type || 'application/octet-stream' });
+    downloadBlob(filename, new Blob([text], { type: type || 'application/octet-stream' }));
+  }
+
+  function downloadBlob(filename, blob) {
     var url = URL.createObjectURL(blob);
     var a = document.createElement('a');
     a.href = url;
@@ -463,12 +495,38 @@
     }, 1500);
   }
 
+  function exportExcel() {
+    if (!window.CarXlsx) {
+      toast('Excel 导出暂不可用，请先刷新页面');
+      return;
+    }
+    var asc = sortAsc(records);
+    var rows = asc.map(function (r, i) {
+      return {
+        seq: i + 1,
+        date: r.date,
+        km: r.km,
+        liters: r.liters,
+        cons: consumption(r) === null ? null : round(consumption(r), 2),
+        price: unitPrice(r) === null ? null : round(unitPrice(r), 2),
+        cost: r.cost
+      };
+    });
+    var blob = window.CarXlsx.build(rows);
+    downloadBlob('车辆加油记录-' + todayISO() + '.xlsx', blob);
+    meta.lastExportAt = new Date().toISOString();
+    save();
+    updateBackupHint();
+    toast('Excel 已导出，可在「文件」里用 Excel 或 WPS 打开');
+  }
+
   function exportJSON() {
     var payload = {
       app: '车辆加油账本',
-      version: 1,
+      version: 2,
       exportedAt: new Date().toISOString(),
       note: window.CAR_NOTE || '',
+      deleted: deleted,
       records: sortAsc(records)
     };
     download('加油记录备份-' + todayISO() + '.json', JSON.stringify(payload, null, 2), 'application/json');
@@ -525,14 +583,17 @@
             km: Number(r.km) || 0,
             liters: Number(r.liters) || 0,
             cost: Number(r.cost) || 0,
-            note: r.note || ''
+            note: r.note || '',
+            updatedAt: Date.now()
           };
         });
         if (!confirm('备份里有 ' + cleaned.length + ' 条记录，将替换现在的 ' + records.length + ' 条。继续吗？')) return;
         records = cleaned;
+        deleted = {};
         save();
         render();
         closeAll();
+        scheduleSync();
         toast('已恢复 ' + cleaned.length + ' 条记录');
       } catch (err) {
         alert('这个文件读不出来，请选择本网页导出的 .json 备份。');
@@ -545,11 +606,274 @@
     if (!confirm('这会清空现在所有记录，换回 Excel 里的 26 条原始数据。确定吗？')) return;
     if (!confirm('再确认一次：当前数据不能恢复（除非你导出过备份）。')) return;
     records = SEED.slice();
+    deleted = {};
     meta = { firstUseAt: new Date().toISOString(), lastExportAt: null };
     save();
     render();
     closeAll();
+    scheduleSync();
     toast('已还原成 Excel 原始记录');
+  }
+
+  /* ---------------- 云同步 ---------------- */
+
+  function saveSyncConfig() {
+    try {
+      localStorage.setItem(SYNC_KEY, JSON.stringify({
+        token: sync.token,
+        gistId: sync.gistId,
+        lastSync: sync.lastSync
+      }));
+    } catch (e) { /* 忽略 */ }
+  }
+
+  function gh(method, path, body) {
+    var opts = {
+      method: method,
+      headers: {
+        'Authorization': 'Bearer ' + sync.token,
+        'Accept': 'application/vnd.github+json'
+      }
+    };
+    if (body) {
+      opts.headers['Content-Type'] = 'application/json';
+      opts.body = JSON.stringify(body);
+    }
+    return fetch('https://api.github.com' + path, opts).then(function (res) {
+      if (res.status === 401) {
+        var authErr = new Error('auth');
+        authErr.code = 'auth';
+        throw authErr;
+      }
+      if (res.status === 404) return null;
+      if (!res.ok) {
+        var err = new Error('http ' + res.status);
+        err.code = 'http';
+        throw err;
+      }
+      return res.json();
+    });
+  }
+
+  function ensureGist() {
+    if (sync.gistId) return Promise.resolve(sync.gistId);
+    return gh('GET', '/gists?per_page=100').then(function (list) {
+      var found = (list || []).filter(function (g) {
+        return g && g.description === SYNC_DESC;
+      })[0];
+      if (found) {
+        sync.gistId = found.id;
+        saveSyncConfig();
+        return found.id;
+      }
+      return null;
+    });
+  }
+
+  function mergeRemote(remote) {
+    if (!remote || !Array.isArray(remote.records)) return;
+    var byId = {};
+    records.forEach(function (r) { byId[r.id] = r; });
+
+    remote.records.forEach(function (r) {
+      if (!r || !r.id || !dateParts(r.date)) return;
+      var incoming = {
+        id: String(r.id),
+        date: r.date,
+        km: Number(r.km) || 0,
+        liters: Number(r.liters) || 0,
+        cost: Number(r.cost) || 0,
+        note: r.note || '',
+        updatedAt: Number(r.updatedAt) || 0
+      };
+      var cur = byId[incoming.id];
+      if (!cur || incoming.updatedAt > (Number(cur.updatedAt) || 0)) {
+        byId[incoming.id] = incoming;
+      }
+    });
+
+    var tomb = {};
+    [deleted, remote.deleted || {}].forEach(function (map) {
+      Object.keys(map || {}).forEach(function (k) {
+        tomb[k] = Math.max(Number(tomb[k]) || 0, Number(map[k]) || 0);
+      });
+    });
+    deleted = tomb;
+
+    records = Object.keys(byId).map(function (k) { return byId[k]; }).filter(function (r) {
+      return !(deleted[r.id] && deleted[r.id] >= (Number(r.updatedAt) || 0));
+    });
+
+    save();
+    render();
+  }
+
+  function pullRemote() {
+    return ensureGist().then(function (id) {
+      if (!id) return false;
+      return gh('GET', '/gists/' + id).then(function (g) {
+        if (!g || !g.files || !g.files[SYNC_FILE]) return false;
+        var file = g.files[SYNC_FILE];
+        var load = file.truncated && file.raw_url
+          ? fetch(file.raw_url).then(function (r) { return r.text(); })
+          : Promise.resolve(file.content || '');
+        return load.then(function (text) {
+          if (!text) return false;
+          var remote = JSON.parse(text);
+          mergeRemote(remote);
+          return true;
+        });
+      });
+    });
+  }
+
+  function pushRemote() {
+    var doc = {
+      app: 'carFuelLog',
+      version: 2,
+      updatedAt: Date.now(),
+      records: records.map(function (r) {
+        return {
+          id: r.id, date: r.date, km: r.km, liters: r.liters,
+          cost: r.cost, note: r.note, updatedAt: r.updatedAt || 0
+        };
+      }),
+      deleted: deleted
+    };
+    var content = JSON.stringify(doc);
+    var files = {};
+    files[SYNC_FILE] = { content: content };
+
+    return ensureGist().then(function (id) {
+      if (!id) {
+        return gh('POST', '/gists', {
+          description: SYNC_DESC,
+          public: false,
+          files: files
+        }).then(function (g) {
+          if (g && g.id) {
+            sync.gistId = g.id;
+            saveSyncConfig();
+          }
+        });
+      }
+      return gh('PATCH', '/gists/' + id, { files: files });
+    });
+  }
+
+  function setSyncStatus(state) {
+    sync.status = state;
+    var dot = $('syncDot');
+    var txt = $('syncStatus');
+    if (!dot || !txt) return;
+
+    dot.className = 'sync-dot ' + (
+      state === 'ok' ? 'ok' :
+      state === 'syncing' ? 'busy' :
+      state === 'auth' || state === 'error' ? 'err' : ''
+    );
+
+    var when = sync.lastSync
+      ? new Date(sync.lastSync).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+      : '';
+
+    txt.textContent =
+      state === 'ok' ? '已同步 · ' + when :
+      state === 'syncing' ? '正在同步…' :
+      state === 'auth' ? '同步码无效或已过期' :
+      state === 'error' ? '同步失败，请检查网络' :
+      sync.lastSync ? '已开启 · 上次同步 ' + when : '已开启 · 等待同步';
+  }
+
+  function renderSyncUI() {
+    var on = !!sync.token;
+    $('syncOffBlock').hidden = on;
+    $('syncOnBlock').hidden = !on;
+    if (on) setSyncStatus(sync.status === 'off' ? 'idle' : sync.status);
+  }
+
+  function syncNow() {
+    if (!sync.token || sync.busy) return Promise.resolve();
+    sync.busy = true;
+    setSyncStatus('syncing');
+    return pullRemote()
+      .then(function () { return pushRemote(); })
+      .then(function () {
+        sync.lastSync = Date.now();
+        saveSyncConfig();
+        sync.busy = false;
+        setSyncStatus('ok');
+      })
+      .catch(function (e) {
+        sync.busy = false;
+        setSyncStatus(e && e.code === 'auth' ? 'auth' : 'error');
+      });
+  }
+
+  function scheduleSync() {
+    if (!sync.token) return;
+    clearTimeout(syncTimer);
+    syncTimer = setTimeout(function () { syncNow(); }, 1200);
+  }
+
+  function connectSync() {
+    var input = $('syncToken');
+    var msg = $('syncConnectMsg');
+    var val = (input.value || '').trim();
+    msg.hidden = true;
+
+    if (!/^(gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,})$/.test(val)) {
+      msg.textContent = '同步码格式不对：应该是一长串字符（通常是 ghp_ 开头），请重新复制。';
+      msg.hidden = false;
+      return;
+    }
+
+    sync.token = val;
+    sync.gistId = '';
+    sync.lastSync = null;
+    saveSyncConfig();
+    input.value = '';
+    renderSyncUI();
+    setSyncStatus('syncing');
+
+    syncNow().then(function () {
+      if (sync.status === 'auth') {
+        sync.token = '';
+        sync.gistId = '';
+        saveSyncConfig();
+        renderSyncUI();
+        msg.textContent = '这个同步码不能用（没勾 gist 权限或已失效），请重新生成一个。';
+        msg.hidden = false;
+        return;
+      }
+      updateBackupHint();
+      toast('云同步已开启，记录已上传');
+    });
+  }
+
+  function disconnectSync() {
+    if (!confirm('关闭后这台手机不再自动同步，已有记录不会删除。确定吗？')) return;
+    sync.token = '';
+    sync.gistId = '';
+    sync.lastSync = null;
+    sync.status = 'off';
+    saveSyncConfig();
+    renderSyncUI();
+    updateBackupHint();
+    toast('已关闭云同步');
+  }
+
+  function copySyncCode() {
+    if (!sync.token) return;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(sync.token).then(function () {
+        toast('同步码已复制，发给另一台手机粘贴');
+      }).catch(function () {
+        window.prompt('复制下面这串同步码，发给另一台手机：', sync.token);
+      });
+    } else {
+      window.prompt('复制下面这串同步码，发给另一台手机：', sync.token);
+    }
   }
 
   /* ---------------- 提示条 ---------------- */
@@ -611,9 +935,11 @@
     });
 
     $('helpBtn').addEventListener('click', function () {
+      renderSyncUI();
       openSheet($('helpSheet'));
     });
 
+    $('exportExcelBtn').addEventListener('click', exportExcel);
     $('exportBtn').addEventListener('click', exportJSON);
     $('exportCsvBtn').addEventListener('click', exportCSV);
     $('importBtn').addEventListener('click', function () { $('importFile').click(); });
@@ -623,6 +949,15 @@
       e.target.value = '';
     });
     $('resetBtn').addEventListener('click', resetToSeed);
+
+    $('syncConnect').addEventListener('click', connectSync);
+    $('syncNowBtn').addEventListener('click', function () { syncNow(); });
+    $('syncCopyBtn').addEventListener('click', copySyncCode);
+    $('syncOffBtn').addEventListener('click', disconnectSync);
+
+    document.addEventListener('visibilitychange', function () {
+      if (document.visibilityState === 'visible' && sync.token && !sync.busy) syncNow();
+    });
   }
 
   /* ---------------- 启动 ---------------- */
@@ -630,9 +965,14 @@
   records = load();
   bind();
   render();
+  renderSyncUI();
   if (!meta.firstUseAt) {
     meta.firstUseAt = new Date().toISOString();
     save();
+  }
+
+  if (sync.token) {
+    setTimeout(function () { syncNow(); }, 800);
   }
 
   if (window.CAR_NOTE) {
@@ -644,4 +984,6 @@
       navigator.serviceWorker.register('sw.js').catch(function () {});
     });
   }
+
+  window.__carLogReady = true;
 })();
