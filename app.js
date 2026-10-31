@@ -178,6 +178,53 @@
     return t;
   }
 
+  function yearStats() {
+    var map = {};
+    records.forEach(function (r) {
+      var y = String(r.date || '').slice(0, 4);
+      if (!/^\d{4}$/.test(y)) return;
+      if (!map[y]) map[y] = { year: y, km: 0, liters: 0, cost: 0, count: 0 };
+      map[y].km += r.km || 0;
+      map[y].liters += r.liters || 0;
+      map[y].cost += r.cost || 0;
+      map[y].count += 1;
+    });
+    return Object.keys(map).sort().map(function (y) {
+      var s = map[y];
+      s.avg = s.km > 0 && s.liters > 0 ? (s.liters / s.km) * 100 : null;
+      return s;
+    });
+  }
+
+  function renderYearStats() {
+    var stats = yearStats();
+    var card = $('yearCard');
+    if (stats.length < 2) {
+      card.hidden = true;
+      $('yearGrid').innerHTML = '';
+      return;
+    }
+    card.hidden = false;
+
+    var rows = '<div class="year-line year-line--head">' +
+      '<span>年份</span>' +
+      '<span>平均油耗<small>升/百公里</small></span>' +
+      '<span>总里程<small>公里</small></span>' +
+      '<span>总花费<small>元</small></span>' +
+      '</div>';
+
+    stats.slice().reverse().forEach(function (s, i) {
+      rows += '<div class="year-line' + (i === 0 ? ' year-line--latest' : '') + '">' +
+        '<span class="y-year">' + s.year + ' 年</span>' +
+        '<span class="y-cons">' + (s.avg === null ? '—' : fmtPlain(s.avg, 2)) + '</span>' +
+        '<span class="y-km">' + fmt(Math.round(s.km), 0) + '</span>' +
+        '<span class="y-cost">¥' + fmt(s.cost, 0) + '</span>' +
+        '</div>';
+    });
+
+    $('yearGrid').innerHTML = rows;
+  }
+
   function render() {
     records = sortAsc(records);
     var t = totals();
@@ -193,6 +240,7 @@
     $('sumPerKm').innerHTML = (t.perKm === null ? '—' : fmt(t.perKm, 2)) + '<span class="sum-unit">元</span>';
 
     renderChart(asc);
+    renderYearStats();
     renderList(asc);
     renderLedger(asc);
     applyView(asc);
@@ -272,11 +320,17 @@
     var latestId = asc.length ? asc[asc.length - 1].id : null;
     var lastYear = '';
     var rows = '';
+    var byYear = {};
+    yearStats().forEach(function (s) { byYear[s.year] = s; });
 
     asc.slice().reverse().forEach(function (r) {
       var year = String(r.date).slice(0, 4);
       if (year !== lastYear) {
-        rows += '<tr class="year-row"><th colspan="5">' + esc(year) + ' 年</th></tr>';
+        var ys = byYear[year];
+        var avgText = ys && ys.avg !== null
+          ? '<span class="year-avg">平均 ' + fmtPlain(ys.avg, 2) + ' 升/百公里 · ' + ys.count + ' 次</span>'
+          : '';
+        rows += '<tr class="year-row"><th colspan="5">' + esc(year) + ' 年' + avgText + '</th></tr>';
         lastYear = year;
       }
       var c = consumption(r);
