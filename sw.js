@@ -1,5 +1,5 @@
 /* 离线缓存：让网页在没信号时也能打开，联网时优先取新版本 */
-const CACHE = 'carlog-v6';
+const CACHE = 'carlog-v7';
 const ASSETS = [
   './',
   './index.html',
