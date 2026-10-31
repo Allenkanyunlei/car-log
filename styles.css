@@ -14,6 +14,8 @@
 
 * { box-sizing: border-box; }
 
+[hidden] { display: none !important; }
+
 html {
   font-size: 20px;
   -webkit-text-size-adjust: 100%;
@@ -270,10 +272,10 @@ button { font-family: inherit; cursor: pointer; }
 
 .section-head {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
   gap: 10px;
-  margin: 28px 2px 12px;
+  margin: 28px 2px 8px;
 }
 
 .section-head h2 {
@@ -284,6 +286,165 @@ button { font-family: inherit; cursor: pointer; }
 }
 
 .section-head span { font-size: 15px; color: var(--muted-2); }
+
+.view-switch {
+  display: flex;
+  gap: 3px;
+  padding: 4px;
+  background: #e5e9ef;
+  border-radius: 13px;
+}
+
+.view-switch button {
+  border: none;
+  background: transparent;
+  border-radius: 10px;
+  padding: 7px 14px;
+  min-height: 40px;
+  font-size: 16px;
+  font-weight: 700;
+  color: #5b6674;
+  white-space: nowrap;
+}
+
+.view-switch button.is-on {
+  background: #fff;
+  color: var(--ink);
+  box-shadow: 0 1px 3px rgba(13, 17, 23, .14);
+}
+
+.list-meta {
+  margin: 0 2px 12px;
+  font-size: 15px;
+  color: var(--muted-2);
+}
+
+/* ---------- ledger table ---------- */
+
+.ledger-card {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  box-shadow: var(--shadow);
+  margin-bottom: 14px;
+}
+
+.ledger {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  table-layout: fixed;
+  font-variant-numeric: tabular-nums;
+}
+
+.col-date { width: 16%; }
+.col-km { width: 17%; }
+.col-liters { width: 17%; }
+.col-cons { width: 21%; }
+.col-cost { width: 29%; }
+
+.ledger thead th {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  background: #f4f6f9;
+  padding: 8px 6px 7px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--muted);
+  text-align: right;
+  box-shadow: inset 0 -1px 0 #e3e8ee;
+  border-right: 1px solid #eceff4;
+}
+
+.ledger thead th:first-child {
+  text-align: left;
+  padding-left: 12px;
+  border-top-left-radius: 18px;
+}
+
+.ledger thead th:last-child {
+  padding-right: 12px;
+  border-top-right-radius: 18px;
+  border-right: none;
+}
+
+.ledger thead small {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #8b95a3;
+  white-space: nowrap;
+}
+
+.ledger tbody td {
+  padding: 9px 6px;
+  text-align: right;
+  font-size: 17px;
+  font-weight: 700;
+  color: #1c2733;
+  background: #fff;
+  border-bottom: 1px solid #eef1f5;
+  border-right: 1px solid #f2f4f8;
+}
+
+.ledger tbody td:first-child { text-align: left; padding-left: 12px; }
+.ledger tbody td:last-child { padding-right: 12px; border-right: none; }
+
+.ledger tbody tr:nth-child(even) td { background: #fbfcfd; }
+
+.ledger tbody tr[data-edit] { cursor: pointer; }
+
+.ledger tbody tr[data-edit]:active td { background: #fff3cf; }
+
+.ledger .c-date { font-size: 15px; font-weight: 600; color: var(--muted); }
+
+.ledger .c-cost small {
+  display: block;
+  margin-top: 1px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted-2);
+}
+
+.ledger tr.is-latest td { background: #fffaf0; }
+.ledger tr.is-latest td:first-child { box-shadow: inset 3px 0 0 var(--yellow); }
+
+.ledger .year-row th {
+  text-align: left;
+  padding: 6px 12px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #8a5a00;
+  background: #fff8e1;
+  border-bottom: 1px solid #f6e6b8;
+}
+
+.ledger tfoot th,
+.ledger tfoot td {
+  background: var(--ink);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 800;
+  padding: 12px 6px;
+  text-align: right;
+}
+
+.ledger tfoot td { border-right: 1px solid rgba(255, 255, 255, .12); }
+
+.ledger tfoot th {
+  text-align: left;
+  padding-left: 12px;
+  color: var(--yellow);
+  border-bottom-left-radius: 18px;
+}
+
+.ledger tfoot td:last-child {
+  padding-right: 12px;
+  border-right: none;
+  border-bottom-right-radius: 18px;
+}
 
 /* ---------- chart ---------- */
 
