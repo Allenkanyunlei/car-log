@@ -18,6 +18,12 @@
 </head>
 <body>
 
+<div class="boot-error" id="bootError" hidden>
+  <b>网页没加载完整</b>
+  <p>刚才网络没把程序下载全，按钮会点不动。请下拉刷新一次；还不行就关掉页面重新打开。</p>
+  <button type="button" onclick="location.reload()">重新加载</button>
+</div>
+
 <header class="hero">
   <div class="hero-inner">
     <div class="hero-top">
@@ -75,7 +81,8 @@
     </div>
   </section>
 
-  <button class="big-add" id="addBtn" type="button">
+  <button class="big-add" id="addBtn" type="button"
+    onclick="if(!window.__carLogReady){document.getElementById('bootError').hidden=false;}">
     <span class="big-add-icon">＋</span>
     记一笔加油
   </button>
@@ -200,15 +207,41 @@
 
     <div class="sheet-body help-body">
       <h3>数据存在哪里</h3>
-      <p>记录只保存在这台手机的这个网页里，不会上传到网上。换手机、清理浏览器数据都会丢失，所以请每月导出一次备份。</p>
+      <p>记录默认只保存在这台手机的这个网页里，不会上传服务器。换手机、清理浏览器数据都会丢失，所以请定期导出备份；打开下面的「云同步」后，数据会存到你自己的 GitHub 私有 Gist，多台手机就能看同一份。</p>
 
       <div class="backup-actions">
-        <button type="button" class="btn btn-primary" id="exportBtn">导出备份（.json）</button>
-        <button type="button" class="btn btn-ghost" id="exportCsvBtn">导出表格（.csv，电脑可看）</button>
+        <button type="button" class="btn btn-primary" id="exportExcelBtn">导出 Excel（.xlsx）</button>
+        <button type="button" class="btn btn-ghost" id="exportBtn">导出备份（.json，可恢复）</button>
+        <button type="button" class="btn btn-ghost" id="exportCsvBtn">导出 CSV（备用）</button>
         <button type="button" class="btn btn-ghost" id="importBtn">导入备份，恢复数据</button>
         <input type="file" id="importFile" accept=".json,application/json" hidden>
       </div>
       <p class="backup-time" id="backupTime">还没有导出过备份</p>
+
+      <h3>云同步（多台手机看同一份）</h3>
+      <div class="sync-box">
+        <p class="sync-desc">开启后，每次保存都会自动同步到你自己的 GitHub 私有 Gist；家里其他手机粘贴同一个同步码，就能看到一样的记录。</p>
+
+        <div id="syncOffBlock">
+          <label class="field">
+            <span class="field-label">同步码（GitHub 令牌）</span>
+            <input id="syncToken" class="field-input sync-input" type="password" autocomplete="off" spellcheck="false" placeholder="ghp_ 开头的一串字符">
+          </label>
+          <button type="button" class="btn btn-primary" id="syncConnect">开启同步</button>
+          <p class="sync-help">还没有同步码？<a href="https://github.com/settings/tokens/new?scopes=gist&description=car-log" target="_blank" rel="noopener">点这里生成</a>：登录 GitHub → 只勾选 <b>gist</b> → 点页面最下面的「Generate token」→ 复制那串 <b>ghp_</b> 开头的字符粘贴到上面。只给 gist 权限，不要勾别的。</p>
+          <p class="sync-msg" id="syncConnectMsg" hidden></p>
+        </div>
+
+        <div id="syncOnBlock" hidden>
+          <p class="sync-status"><span class="sync-dot" id="syncDot"></span><span id="syncStatus">已开启</span></p>
+          <div class="sync-actions">
+            <button type="button" class="btn btn-ghost" id="syncNowBtn">立即同步</button>
+            <button type="button" class="btn btn-ghost" id="syncCopyBtn">复制同步码（给另一台手机）</button>
+            <button type="button" class="btn btn-danger" id="syncOffBtn">关闭同步</button>
+          </div>
+          <p class="sync-help">其他手机：打开同一个网址 →「说明 · 备份」→ 粘贴这个同步码 → 开启同步，记录会自动出现。同步码等于钥匙，只发给自己家人。</p>
+        </div>
+      </div>
 
       <h3>放到苹果手机桌面上</h3>
       <ol class="steps">
@@ -230,13 +263,27 @@
       <p>油耗 = 加油量 ÷ 里程 × 100（升/百公里）<br>油价 = 费用 ÷ 加油量（元/升）<br>合计行与 Excel 表格里的公式完全一致。</p>
 
       <button type="button" class="reset-link" id="resetBtn">还原成 Excel 里的 26 条原始记录</button>
+      <p class="app-version" id="appVersion">版本：2026-10-31 · 表格 + Excel + 云同步</p>
     </div>
   </div>
 </div>
 
 <div class="toast" id="toast" hidden></div>
 
+<script>
+(function () {
+  function showBootError() {
+    if (window.__carLogReady) return;
+    var el = document.getElementById('bootError');
+    if (el) el.hidden = false;
+  }
+  window.addEventListener('error', showBootError, true);
+  window.addEventListener('unhandledrejection', showBootError);
+  setTimeout(showBootError, 4500);
+})();
+</script>
 <script src="records.js"></script>
+<script src="xlsx.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
