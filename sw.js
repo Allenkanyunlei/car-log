@@ -1,10 +1,11 @@
-﻿/* 绂荤嚎缂撳瓨锛氳缃戦〉鍦ㄦ病淇″彿鏃朵篃鑳芥墦寮€锛岃仈缃戞椂浼樺厛鍙栨柊鐗堟湰 */
-const CACHE = 'carlog-v5';
+/* 离线缓存：让网页在没信号时也能打开，联网时优先取新版本 */
+const CACHE = 'carlog-v6';
 const ASSETS = [
   './',
   './index.html',
   './styles.css',
   './app.js',
+  './xlsx.js',
   './records.js',
   './manifest.webmanifest',
   './icons/icon-180.png',
@@ -45,4 +46,3 @@ self.addEventListener('fetch', (event) => {
       )
   );
 });
-
