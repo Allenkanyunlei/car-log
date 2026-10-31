@@ -1,5 +1,5 @@
-/* 离线缓存：让网页在没信号时也能打开 */
-const CACHE = 'carlog-v3';
+/* 离线缓存：让网页在没信号时也能打开，联网时优先取新版本 */
+const CACHE = 'carlog-v4';
 const ASSETS = [
   './',
   './index.html',
@@ -33,27 +33,15 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(req.url);
   if (url.origin !== location.origin) return;
 
-  if (req.mode === 'navigate') {
-    event.respondWith(
-      fetch(req)
-        .then((res) => {
-          const copy = res.clone();
-          caches.open(CACHE).then((cache) => cache.put('./index.html', copy));
-          return res;
-        })
-        .catch(() => caches.match('./index.html'))
-    );
-    return;
-  }
-
   event.respondWith(
-    caches.match(req).then((hit) => {
-      if (hit) return hit;
-      return fetch(req).then((res) => {
+    fetch(req)
+      .then((res) => {
         const copy = res.clone();
-        caches.open(CACHE).then((cache) => cache.put(req, copy));
+        caches.open(CACHE).then((cache) => cache.put(req, copy)).catch(() => {});
         return res;
-      });
-    })
+      })
+      .catch(() =>
+        caches.match(req).then((hit) => hit || caches.match('./index.html'))
+      )
   );
 });
